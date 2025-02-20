@@ -1215,6 +1215,10 @@ class ChameleonModel(ChameleonPreTrainedModel):
         self.vqmodel = ChameleonVQVAE._from_config(config.vq_config)
         self.gradient_checkpointing = False
 
+        self.save_embedding_flag = False
+        self.embedding_file_path = None
+        self.embedded_token_length = 0
+
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -1281,7 +1285,20 @@ class ChameleonModel(ChameleonPreTrainedModel):
             raise ValueError(
                 "You cannot specify both pixel_values and inputs_embeds at the same time, and must specify either one"
             )
+        
+        if pixel_values is not None:
+            image_tokens = self.get_image_tokens(pixel_values)
+            n_image_tokens_in_text = (input_ids == self.vocabulary_mapping.image_token_id).sum().item()
+            n_image_features = image_tokens.shape[0] * image_tokens.shape[1]
+            if n_image_tokens_in_text != n_image_features:
+                raise ValueError(
+                    f"Image features and image tokens do not match: tokens: {n_image_tokens_in_text}, features {n_image_features}"
+                )
+            special_image_mask = input_ids == self.vocabulary_mapping.image_token_id
+            image_tokens = image_tokens.to(input_ids.device, input_ids.dtype)
+            input_ids = input_ids.masked_scatter(special_image_mask, image_tokens)
 
+        """
         if pixel_values is not None:
             image_tokens = self.get_image_tokens(pixel_values)
             special_image_mask = input_ids == self.vocabulary_mapping.image_token_id
@@ -1293,6 +1310,8 @@ class ChameleonModel(ChameleonPreTrainedModel):
                 )
             image_tokens = image_tokens.to(input_ids.device, input_ids.dtype)
             input_ids = input_ids.masked_scatter(special_image_mask, image_tokens)
+        
+        """
 
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
@@ -1316,6 +1335,16 @@ class ChameleonModel(ChameleonPreTrainedModel):
 
         # embed positions
         hidden_states = inputs_embeds
+        GREEN = "\033[92m"
+        RESET = "\033[0m" 
+        PINK = "\033[38;2;255;105;180m"
+        if self.save_embedding_flag:
+            if self.embedding_file_path is not None:
+                flattened_embeddings = inputs_embeds.cpu().float().flatten().numpy()
+                flattened_embeddings.tofile(self.embedding_file_path)
+                self.embedded_token_length = hidden_states.shape[1]
+                print(f"{GREEN}Embeddings saved to {self.embedding_file_path}{PINK} with {self.embedded_token_length} tokens{RESET}")
+                return 
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
