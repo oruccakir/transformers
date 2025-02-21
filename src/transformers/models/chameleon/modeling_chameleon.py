@@ -1634,12 +1634,13 @@ class ChameleonForConditionalGeneration(ChameleonPreTrainedModel, GenerationMixi
 
         hidden_states = outputs[0]
         logits = self.lm_head(hidden_states)
-
         # Disallow image tokens which does not include special begin-image and end-image tokens
         image_tokens = self.model.vocabulary_mapping.image_tokens
         logits[:, :, image_tokens] = torch.finfo(logits.dtype).min
 
         loss = None
+        perplextiy = None
+
         if labels is not None:
             # Upcast to float if we need to compute the loss to avoid potential precision issues
             logits = logits.float()
@@ -1653,6 +1654,9 @@ class ChameleonForConditionalGeneration(ChameleonPreTrainedModel, GenerationMixi
             # Enable model parallelism
             shift_labels = shift_labels.to(shift_logits.device)
             loss = loss_fct(shift_logits, shift_labels)
+
+            # compute perplexity
+            perplextiy = torch.exp(loss)
 
         if not return_dict:
             output = (logits,) + outputs[1:]
