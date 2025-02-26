@@ -1656,7 +1656,11 @@ class ChameleonForConditionalGeneration(ChameleonPreTrainedModel, GenerationMixi
             loss = loss_fct(shift_logits, shift_labels)
 
             # compute perplexity
-            perplextiy = torch.exp(loss)
+            perplextiy_batch = torch.exp(loss)
+            ppls=0
+            ppls += perplextiy_batch
+            #import numpy as np
+            #print({"perplexities": ppls, "mean_perplexity": ppls})
 
         if not return_dict:
             output = (logits,) + outputs[1:]
