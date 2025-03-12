@@ -372,6 +372,11 @@ class LlavaNextForConditionalGeneration(LlavaNextPreTrainedModel, GenerationMixi
 
         self.pad_token_id = self.config.pad_token_id if self.config.pad_token_id is not None else -1
         self._padding_side = "left"  # set it to left by default, user can use setter to change padding_sides
+
+        self.save_embedding_flag = False
+        self.embedding_file_path = None
+        self.embedded_token_length = 0
+
         self.post_init()
 
     @property
@@ -649,6 +654,17 @@ class LlavaNextForConditionalGeneration(LlavaNextPreTrainedModel, GenerationMixi
                 )
             image_features = image_features.to(inputs_embeds.device, inputs_embeds.dtype)
             inputs_embeds = inputs_embeds.masked_scatter(special_image_mask, image_features)
+
+        hidden_states = inputs_embeds
+        GREEN = "\033[92m"
+        RESET = "\033[0m" 
+        PINK = "\033[38;2;255;105;180m"
+        if self.save_embedding_flag:
+            if self.embedding_file_path is not None:
+                inputs_embeds.cpu().flatten().float().detach().numpy().tofile(self.embedding_file_path)
+                self.embedded_token_length = hidden_states.shape[1]
+                print(f"{GREEN}Embeddings saved to {self.embedding_file_path}{PINK} with {self.embedded_token_length} tokens{RESET}")
+                return 
 
         outputs = self.language_model(
             attention_mask=attention_mask,
