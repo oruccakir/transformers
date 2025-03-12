@@ -260,6 +260,10 @@ class LlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
 
         self.post_init()
 
+        self.save_embedding_flag = False
+        self.embedding_file_path = None
+        self.embedded_token_length = 0
+
     def get_input_embeddings(self):
         return self.language_model.get_input_embeddings()
 
@@ -429,6 +433,19 @@ class LlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
                 )
             image_features = image_features.to(inputs_embeds.device, inputs_embeds.dtype)
             inputs_embeds = inputs_embeds.masked_scatter(special_image_mask, image_features)
+
+        
+        GREEN = "\033[92m"
+        RESET = "\033[0m" 
+        PINK = "\033[38;2;255;105;180m"
+        if self.save_embedding_flag:
+            if self.embedding_file_path is not None:
+                hidden_states = inputs_embeds
+                inputs_embeds.cpu().flatten().float().detach().numpy().tofile(self.embedding_file_path)
+                self.embedded_token_length = hidden_states.shape[1]
+                print(f"{GREEN}Embeddings saved to {self.embedding_file_path}{PINK} with {self.embedded_token_length} tokens{RESET}")
+                return 
+        
 
         outputs = self.language_model(
             attention_mask=attention_mask,
