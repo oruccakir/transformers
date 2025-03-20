@@ -1298,6 +1298,8 @@ class ChameleonModel(ChameleonPreTrainedModel):
             image_tokens = image_tokens.to(input_ids.device, input_ids.dtype)
             input_ids = input_ids.masked_scatter(special_image_mask, image_tokens)
 
+
+
         """
         if pixel_values is not None:
             image_tokens = self.get_image_tokens(pixel_values)
@@ -1335,15 +1337,12 @@ class ChameleonModel(ChameleonPreTrainedModel):
 
         # embed positions
         hidden_states = inputs_embeds
-        GREEN = "\033[92m"
-        RESET = "\033[0m" 
-        PINK = "\033[38;2;255;105;180m"
         if self.save_embedding_flag:
             if self.embedding_file_path is not None:
                 flattened_embeddings = inputs_embeds.cpu().float().flatten().numpy()
                 flattened_embeddings.tofile(self.embedding_file_path)
                 self.embedded_token_length = hidden_states.shape[1]
-                print(f"{GREEN}Embeddings saved to {self.embedding_file_path}{PINK} with {self.embedded_token_length} tokens{RESET}")
+                print(f"Embeddings saved to {self.embedding_file_path} with {self.embedded_token_length} tokens")
                 return 
 
         # decoder layers

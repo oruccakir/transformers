@@ -656,14 +656,11 @@ class LlavaNextForConditionalGeneration(LlavaNextPreTrainedModel, GenerationMixi
             inputs_embeds = inputs_embeds.masked_scatter(special_image_mask, image_features)
 
         hidden_states = inputs_embeds
-        GREEN = "\033[92m"
-        RESET = "\033[0m" 
-        PINK = "\033[38;2;255;105;180m"
         if self.save_embedding_flag:
             if self.embedding_file_path is not None:
                 inputs_embeds.cpu().flatten().float().detach().numpy().tofile(self.embedding_file_path)
                 self.embedded_token_length = hidden_states.shape[1]
-                print(f"{GREEN}Embeddings saved to {self.embedding_file_path}{PINK} with {self.embedded_token_length} tokens{RESET}")
+                print(f"Embeddings saved to {self.embedding_file_path}with {self.embedded_token_length} tokens")
                 return 
 
         outputs = self.language_model(
