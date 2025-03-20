@@ -1218,6 +1218,8 @@ class ChameleonModel(ChameleonPreTrainedModel):
         self.save_embedding_flag = False
         self.embedding_file_path = None
         self.embedded_token_length = 0
+        self.get_weights_distribution_flag = False
+        self.layers_weights_distribution_map = {}
 
         # Initialize weights and apply final processing
         self.post_init()

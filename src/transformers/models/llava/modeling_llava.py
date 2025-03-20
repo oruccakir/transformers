@@ -263,6 +263,8 @@ class LlavaForConditionalGeneration(LlavaPreTrainedModel, GenerationMixin):
         self.save_embedding_flag = False
         self.embedding_file_path = None
         self.embedded_token_length = 0
+        self.get_weights_distribution_flag = False
+        self.layers_weights_distribution_map = {}
 
     def get_input_embeddings(self):
         return self.language_model.get_input_embeddings()
