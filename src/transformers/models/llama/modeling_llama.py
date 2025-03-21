@@ -846,7 +846,15 @@ class LlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
 
             logits_to_keep (`int` or `torch.Tensor`, *optional*):
                 If an `int`, compute logits for the last `logits_to_keep` tokens. If `0`, calculate logits for all
-                `input_ids` (special case). Only laprint("All ")
+                `input_ids` (special case). Only last token logits are needed for generation, and calculating them only for that
+                token can save memory, which becomes pretty significant for long sequences or large vocabulary size.
+                If a `torch.Tensor`, must be 1D corresponding to the indices to keep in the sequence length dimension.
+                This is useful when using packed tensor format (single dimension for batch and sequence length).
+
+        Returns:
+
+        Example:
+
         ```python
         >>> from transformers import AutoTokenizer, LlamaForCausalLM
 
