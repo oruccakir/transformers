@@ -640,7 +640,6 @@ class LlamaModel(LlamaPreTrainedModel):
         return input_tensor.cpu().float().flatten().numpy()
     
     def save_all_input_activations(self, save_dir_path):
-        print(f"Saving activations to {save_dir_path} for model {self.__class__.__name__} main purpose deepseek janus pro")
         import os
         if not os.path.exists(save_dir_path):
             os.makedirs(save_dir_path)
@@ -656,8 +655,9 @@ class LlamaModel(LlamaPreTrainedModel):
                 layer_name = "unknown"
             flattened_activation = self.layers_weights_distribution_map[layer]
             flattened_activation.tofile(f"{save_dir_path}/{layer_name}.bin")
-            print(f"Activation saved to {save_dir_path}/{layer_name}.bin")
             layer_idx = layer_idx + 1
+        
+        print("All input activations saved to ", save_dir_path)
 
     def _update_causal_mask(
         self,
@@ -846,15 +846,7 @@ class LlamaForCausalLM(LlamaPreTrainedModel, GenerationMixin):
 
             logits_to_keep (`int` or `torch.Tensor`, *optional*):
                 If an `int`, compute logits for the last `logits_to_keep` tokens. If `0`, calculate logits for all
-                `input_ids` (special case). Only last token logits are needed for generation, and calculating them only for that
-                token can save memory, which becomes pretty significant for long sequences or large vocabulary size.
-                If a `torch.Tensor`, must be 1D corresponding to the indices to keep in the sequence length dimension.
-                This is useful when using packed tensor format (single dimension for batch and sequence length).
-
-        Returns:
-
-        Example:
-
+                `input_ids` (special case). Only laprint("All ")
         ```python
         >>> from transformers import AutoTokenizer, LlamaForCausalLM
 

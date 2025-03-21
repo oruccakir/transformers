@@ -628,8 +628,9 @@ class MistralModel(MistralPreTrainedModel):
                 layer_name = "unknown"
             flattened_activation = self.layers_weights_distribution_map[layer]
             flattened_activation.tofile(f"{save_dir_path}/{layer_name}.bin")
-            print(f"Activation saved to {save_dir_path}/{layer_name}.bin")
             layer_idx = layer_idx + 1
+        
+        print("All input activations saved to ", save_dir_path)
 
     def _update_causal_mask(
         self,

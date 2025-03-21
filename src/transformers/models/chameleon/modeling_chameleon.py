@@ -1437,8 +1437,9 @@ class ChameleonModel(ChameleonPreTrainedModel):
                 layer_name = "unknown"
             flattened_activation = self.layers_weights_distribution_map[layer]
             flattened_activation.tofile(f"{save_dir_path}/{layer_name}.bin")
-            print(f"Activation saved to {save_dir_path}/{layer_name}.bin")
             layer_idx = layer_idx + 1
+
+        print("All input activations saved to ", save_dir_path)
 
     # Copied from transformers.models.llama.modeling_llama.LlamaModel._update_causal_mask
     def _update_causal_mask(
