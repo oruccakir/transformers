@@ -506,6 +506,9 @@ class LlamaModel(LlamaPreTrainedModel):
         self.rotary_emb = LlamaRotaryEmbedding(config=config)
         self.gradient_checkpointing = False
 
+        self.get_weights_distribution_flag = False
+        self.layers_weights_distribution_map = {}
+
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -574,6 +577,9 @@ class LlamaModel(LlamaPreTrainedModel):
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
 
+        if self.get_weights_distribution_flag:
+            self.layers_weights_distribution_map[self.embed_tokens] = self.flatten_input_activation(hidden_states)
+
         for decoder_layer in self.layers[: self.config.num_hidden_layers]:
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
@@ -605,10 +611,17 @@ class LlamaModel(LlamaPreTrainedModel):
 
             hidden_states = layer_outputs[0]
 
+            if self.get_weights_distribution_flag:
+                self.layers_weights_distribution_map[decoder_layer] = self.flatten_input_activation(hidden_states)
+
             if output_attentions:
                 all_self_attns += (layer_outputs[1],)
 
         hidden_states = self.norm(hidden_states)
+
+        if self.get_weights_distribution_flag:
+            self.layers_weights_distribution_map[self.norm] = self.flatten_input_activation(hidden_states)
+            self.get_weights_distribution_flag = False
 
         # add hidden states from the last decoder layer
         if output_hidden_states:
@@ -621,6 +634,30 @@ class LlamaModel(LlamaPreTrainedModel):
             attentions=all_self_attns,
         )
         return output if return_dict else output.to_tuple()
+    
+
+    def flatten_input_activation(self, input_tensor):
+        return input_tensor.cpu().float().flatten().numpy()
+    
+    def save_all_input_activations(self, save_dir_path):
+        print(f"Saving activations to {save_dir_path} for model {self.__class__.__name__} main purpose deepseek janus pro")
+        import os
+        if not os.path.exists(save_dir_path):
+            os.makedirs(save_dir_path)
+        layer_idx = 0
+        for layer in self.layers_weights_distribution_map:
+            if isinstance(layer, LlamaDecoderLayer):
+                layer_name = f"decoder_layer_{layer_idx}"
+            elif isinstance(layer, nn.Embedding):
+                layer_name = "embedding_layer"
+            elif isinstance(layer, LlamaRMSNorm):
+                layer_name = "rms_norm_layer"
+            else:
+                layer_name = "unknown"
+            flattened_activation = self.layers_weights_distribution_map[layer]
+            flattened_activation.tofile(f"{save_dir_path}/{layer_name}.bin")
+            print(f"Activation saved to {save_dir_path}/{layer_name}.bin")
+            layer_idx = layer_idx + 1
 
     def _update_causal_mask(
         self,
