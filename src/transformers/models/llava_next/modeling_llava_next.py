@@ -376,6 +376,8 @@ class LlavaNextForConditionalGeneration(LlavaNextPreTrainedModel, GenerationMixi
         self.save_embedding_flag = False
         self.embedding_file_path = None
         self.embedded_token_length = 0
+        self.get_weights_distribution_flag = False
+        self.layers_weights_distribution_map = {}
 
         self.post_init()
 
@@ -662,7 +664,7 @@ class LlavaNextForConditionalGeneration(LlavaNextPreTrainedModel, GenerationMixi
                 self.embedded_token_length = hidden_states.shape[1]
                 print(f"Embeddings saved to {self.embedding_file_path}with {self.embedded_token_length} tokens")
                 return 
-
+            
         outputs = self.language_model(
             attention_mask=attention_mask,
             position_ids=position_ids,
