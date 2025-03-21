@@ -1352,6 +1352,9 @@ class ChameleonModel(ChameleonPreTrainedModel):
         all_self_attns = () if output_attentions else None
         next_decoder_cache = None
 
+        if self.get_weights_distribution_flag:
+            self.layers_weights_distribution_map[self.embed_tokens]=self.flatten_input_activation(hidden_states)
+
         for decoder_layer in self.layers:
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
@@ -1380,6 +1383,9 @@ class ChameleonModel(ChameleonPreTrainedModel):
 
             hidden_states = layer_outputs[0]
 
+            if self.get_weights_distribution_flag:
+                self.layers_weights_distribution_map[decoder_layer]=self.flatten_input_activation(hidden_states)
+
             if use_cache:
                 next_decoder_cache = layer_outputs[2 if output_attentions else 1]
 
@@ -1387,6 +1393,10 @@ class ChameleonModel(ChameleonPreTrainedModel):
                 all_self_attns += (layer_outputs[1],)
 
         hidden_states = self.norm(hidden_states)
+
+        if self.get_weights_distribution_flag:
+            self.layers_weights_distribution_map[self.norm]=self.flatten_input_activation(hidden_states)
+            self.get_weights_distribution_flag = False
 
         # add hidden states from the last decoder layer
         if output_hidden_states:
@@ -1405,6 +1415,30 @@ class ChameleonModel(ChameleonPreTrainedModel):
             hidden_states=all_hidden_states,
             attentions=all_self_attns,
         )
+    
+    def flatten_input_activation(self, input_tensor):
+        return input_tensor.cpu().float().flatten().numpy()
+    
+    def save_all_input_activations(self, save_dir_path):
+        import os
+        if not os.path.exists(save_dir_path):
+            os.makedirs(save_dir_path)
+        layer_idx = 0
+        for layer in self.layers_weights_distribution_map:
+            if isinstance(layer, ChameleonDecoderLayer):
+                layer_name = f"decoder_layer_{layer_idx}"
+            elif isinstance(layer, ChameleonSwinDecoderLayer):
+                layer_name = f"swin_decoder_layer_{layer_idx}"
+            elif isinstance(layer, nn.Embedding):
+                layer_name = "embedding_layer"
+            elif isinstance(layer, ChameleonRMSNorm):
+                layer_name = "rms_norm_layer"
+            else:
+                layer_name = "unknown"
+            flattened_activation = self.layers_weights_distribution_map[layer]
+            flattened_activation.tofile(f"{save_dir_path}/{layer_name}.bin")
+            print(f"Activation saved to {save_dir_path}/{layer_name}.bin")
+            layer_idx = layer_idx + 1
 
     # Copied from transformers.models.llama.modeling_llama.LlamaModel._update_causal_mask
     def _update_causal_mask(
@@ -1530,7 +1564,7 @@ class ChameleonModel(ChameleonPreTrainedModel):
                 )
 
         return causal_mask
-
+    
 
 @add_start_docstrings(
     "Chameleon Model with a head on top used for outputting logits for next token prediction.",
