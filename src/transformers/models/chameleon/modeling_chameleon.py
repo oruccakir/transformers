@@ -71,11 +71,22 @@ class ChameleonRMSNorm(nn.Module):
         self.weight = nn.Parameter(torch.ones(hidden_size))
         self.variance_epsilon = eps
 
+        self.get_weights_distribution_flag = False
+        self.rms_norm_weights_distribution = {}
+
     def forward(self, hidden_states):
         input_dtype = hidden_states.dtype
         hidden_states = hidden_states.to(torch.float32)
         variance = hidden_states.pow(2).mean(-1, keepdim=True)
         hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
+
+        if self.get_weights_distribution_flag:
+            norm_weights_distribution = {}
+            norm_weights_distribution["input"]=hidden_states.cpu().float().flatten().numpy()
+            norm_weights_distribution["weights"]=self.weight.cpu().float().flatten().numpy()
+            norm_weights_distribution["output"]=self.weight * hidden_states.to(input_dtype).cpu().float().flatten().numpy()
+            self.rms_norm_weights_distribution["norm"]=norm_weights_distribution
+
         return self.weight * hidden_states.to(input_dtype)
 
     def extra_repr(self):
@@ -193,9 +204,35 @@ class ChameleonMLP(nn.Module):
         self.down_proj = nn.Linear(self.intermediate_size, self.hidden_size, bias=config.mlp_bias)
         self.act_fn = ACT2FN[config.hidden_act]
 
+        self.get_weights_distribution_flag = False
+        self.mlp_weights_distribution = {}
+
     # Ignore copy
     def forward(self, x):
+
+        if self.get_weights_distribution_flag:
+            mlp_gate_weights_distribution = {}
+            mlp_gate_weights_distribution["input"]=x.cpu().float().flatten().numpy()
+            mlp_gate_weights_distribution["weights"]=self.gate_proj.weight.cpu().float().flatten().numpy()
+            mlp_gate_weights_distribution["output"]=self.gate_proj(x).cpu().float().flatten().numpy()
+            mlp_up_weights_distribution = {}
+            mlp_up_weights_distribution["input"]=x.cpu().float().flatten().numpy()
+            mlp_up_weights_distribution["weights"]=self.up_proj.weight.cpu().float().flatten().numpy()
+            mlp_up_weights_distribution["output"]=self.up_proj(x).cpu().float().flatten().numpy()
+            mlp_down_weights_distribution = {}
+            mlp_down_weights_distribution["input"]=self.act_fn(self.act_fn(self.gate_proj(x)) * self.up_proj(x)).cpu().float().flatten().numpy()
+            mlp_down_weights_distribution["weights"]=self.down_proj.weight.cpu().float().flatten().numpy()
+
         down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
+
+        if self.get_weights_distribution_flag:
+            mlp_down_weights_distribution["output"]=down_proj.cpu().float().flatten().numpy()
+
+            self.mlp_weights_distribution["mlp.gate_proj"]=mlp_gate_weights_distribution
+            self.mlp_weights_distribution["mlp.up_proj"]=mlp_up_weights_distribution
+            self.mlp_weights_distribution["mlp.down_proj"]=mlp_down_weights_distribution
+            
+
         return down_proj
 
 
@@ -269,6 +306,9 @@ class ChameleonAttention(nn.Module):
         self.k_norm = ChameleonLayerNorm((self.num_key_value_heads, self.head_dim))
         self._init_rope()
 
+        self.attention_weights_distributions = {}
+        self.get_weights_distribution_flag = False
+
     # copied from transformers.models.llama.modeling_llama.LlamaAttention._init_rope with Llama->Chameleon
     # TODO(joao): add me back asap :)
     def _init_rope(self):
@@ -311,15 +351,66 @@ class ChameleonAttention(nn.Module):
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         bsz, q_len, _ = hidden_states.size()
 
+        if self.get_weights_distribution_flag:
+            self_attn_q_proj_distribution = {}
+            self_attn_q_proj_distribution["input"]=hidden_states.cpu().float().flatten().numpy()
+            self_attn_q_proj_distribution["weights"]=self.q_proj.weight.cpu().float().flatten().numpy()
+
         query_states = self.q_proj(hidden_states)
+
+        if self.get_weights_distribution_flag:
+            self_attn_q_proj_distribution["output"]=query_states.cpu().float().flatten().numpy()
+            self.attention_weights_distributions["self_attn.q_proj"]=self_attn_q_proj_distribution
+
+        if self.get_weights_distribution_flag:
+            self_attn_k_proj_distribution = {}
+            self_attn_k_proj_distribution["input"]=hidden_states.cpu().float().flatten().numpy()
+            self_attn_k_proj_distribution["weights"]=self.k_proj.weight.cpu().float().flatten().numpy()
+
         key_states = self.k_proj(hidden_states)
+
+        if self.get_weights_distribution_flag:
+            self_attn_k_proj_distribution["output"]=key_states.cpu().float().flatten().numpy()
+            self.attention_weights_distributions["self_attn.k_proj"]=self_attn_k_proj_distribution
+
+        if self.get_weights_distribution_flag:
+            self_attn_v_proj_distribution = {}
+            self_attn_v_proj_distribution["input"]=hidden_states.cpu().float().flatten().numpy()
+            self_attn_v_proj_distribution["weights"]=self.v_proj.weight.cpu().float().flatten().numpy()
+        
         value_states = self.v_proj(hidden_states)
 
+        if self.get_weights_distribution_flag:
+            self_attn_v_proj_distribution["output"]=value_states.cpu().float().flatten().numpy()
+            self.attention_weights_distributions["self_attn.v_proj"]=self_attn_v_proj_distribution
+
         query_states = query_states.reshape(-1, self.num_heads, self.head_dim)
+
+        if self.get_weights_distribution_flag:
+            self_attn_q_norm_distribution = {}
+            self_attn_q_norm_distribution["input"]=query_states.cpu().float().flatten().numpy()
+            self_attn_q_norm_distribution["weights"]=self.q_norm.weight.cpu().float().flatten().numpy()
+            self_attn_q_norm_distribution["bias"]=self.q_norm.bias.cpu().float().flatten().numpy()
+
         query_states = self.q_norm(query_states)
 
+        if self.get_weights_distribution_flag:
+            self_attn_q_norm_distribution["output"]=query_states.cpu().float().flatten().numpy()
+            self.attention_weights_distributions["self_attn.q_norm"]=self_attn_q_norm_distribution
+
         key_states = key_states.reshape(-1, self.num_key_value_heads, self.head_dim)
+
+        if self.get_weights_distribution_flag:
+            self_attn_k_norm_distribution = {}
+            self_attn_k_norm_distribution["input"]=key_states.cpu().float().flatten().numpy()
+            self_attn_k_norm_distribution["weights"]=self.k_norm.weight.cpu().float().flatten().numpy()
+            self_attn_k_norm_distribution["bias"]=self.k_norm.bias.cpu().float().flatten().numpy()
+
         key_states = self.k_norm(key_states)
+
+        if self.get_weights_distribution_flag:
+            self_attn_k_norm_distribution["output"]=key_states.cpu().float().flatten().numpy()
+            self.attention_weights_distributions["self_attn.k_norm"]=self_attn_k_norm_distribution
 
         query_states = query_states.reshape(bsz, q_len, self.num_heads, self.head_dim).transpose(1, 2)
         key_states = key_states.reshape(bsz, q_len, self.num_key_value_heads, self.head_dim).transpose(1, 2)
@@ -355,7 +446,17 @@ class ChameleonAttention(nn.Module):
 
         attn_output = attn_output.transpose(1, 2).contiguous()
         attn_output = attn_output.reshape(bsz, q_len, self.hidden_size)
+
+        if self.get_weights_distribution_flag:
+            self_attn_o_proj_distribution = {}
+            self_attn_o_proj_distribution["input"]=attn_output.cpu().float().flatten().numpy()
+            self_attn_o_proj_distribution["weights"]=self.o_proj.weight.cpu().float().flatten().numpy()
+
         attn_output = self.o_proj(attn_output)
+
+        if self.get_weights_distribution_flag:
+            self_attn_o_proj_distribution["output"]=attn_output.cpu().float().flatten().numpy()
+            self.attention_weights_distributions["self_attn.o_proj"]=self_attn_o_proj_distribution
 
         if not output_attentions:
             attn_weights = None
@@ -595,6 +696,9 @@ class ChameleonDecoderLayer(nn.Module):
         self.input_layernorm = ChameleonRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = ChameleonRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
+        self.get_weights_distribution_flag = False
+        self.decoder_weights_distributions = {}
+
     def forward(
         self,
         hidden_states: torch.Tensor,
@@ -627,7 +731,11 @@ class ChameleonDecoderLayer(nn.Module):
         """
         residual = hidden_states
 
+
         hidden_states = self.input_layernorm(hidden_states)
+
+        if self.get_weights_distribution_flag:
+            self.decoder_weights_distributions["input_layernorm"]=self.input_layernorm.rms_norm_weights_distribution
 
         # Self Attention
         hidden_states, self_attn_weights, present_key_value = self.self_attn(
@@ -640,12 +748,27 @@ class ChameleonDecoderLayer(nn.Module):
             cache_position=cache_position,
             **kwargs,
         )
+
+        if self.get_weights_distribution_flag:
+            self.decoder_weights_distributions["self_attn"]=self.self_attn.attention_weights_distributions
+
         hidden_states = residual + hidden_states
 
         # Fully Connected
         residual = hidden_states
+
         hidden_states = self.post_attention_layernorm(hidden_states)
+
+        if self.get_weights_distribution_flag:
+            self.decoder_weights_distributions["post_attention_layernorm"]=self.post_attention_layernorm.rms_norm_weights_distribution
+
+
         hidden_states = self.mlp(hidden_states)
+
+        if self.get_weights_distribution_flag:
+            self.decoder_weights_distributions["mlp"]=self.mlp.mlp_weights_distribution  
+
+
         hidden_states = residual + hidden_states
 
         outputs = (hidden_states,)
@@ -1384,7 +1507,7 @@ class ChameleonModel(ChameleonPreTrainedModel):
             hidden_states = layer_outputs[0]
 
             if self.get_weights_distribution_flag:
-                self.layers_weights_distribution_map[decoder_layer]=self.flatten_input_activation(hidden_states)
+                self.layers_weights_distribution_map[decoder_layer]=decoder_layer.decoder_weights_distributions
 
             if use_cache:
                 next_decoder_cache = layer_outputs[2 if output_attentions else 1]
@@ -1395,8 +1518,14 @@ class ChameleonModel(ChameleonPreTrainedModel):
         hidden_states = self.norm(hidden_states)
 
         if self.get_weights_distribution_flag:
-            self.layers_weights_distribution_map[self.norm]=self.flatten_input_activation(hidden_states)
+            self.layers_weights_distribution_map[self.norm]=self.norm.rms_norm_weights_distribution
             self.get_weights_distribution_flag = False
+            for decoder_layer in self.layers:
+                decoder_layer.get_weights_distribution_flag = False
+                decoder_layer.self_attn.get_weights_distribution_flag = False
+                decoder_layer.mlp.get_weights_distribution_flag = False
+                decoder_layer.input_layernorm.get_weights_distribution_flag = False
+                decoder_layer.post_attention_layernorm.get_weights_distribution_flag = False
 
         # add hidden states from the last decoder layer
         if output_hidden_states:
