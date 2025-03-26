@@ -81,11 +81,8 @@ class ChameleonRMSNorm(nn.Module):
         hidden_states = hidden_states * torch.rsqrt(variance + self.variance_epsilon)
 
         if self.get_weights_distribution_flag:
-            norm_weights_distribution = {}
-            norm_weights_distribution["input"]=hidden_states.cpu().float().flatten().numpy()
-            norm_weights_distribution["weights"]=self.weight.cpu().float().flatten().numpy()
-            norm_weights_distribution["output"]=self.weight * hidden_states.to(input_dtype).cpu().float().flatten().numpy()
-            self.rms_norm_weights_distribution["norm"]=norm_weights_distribution
+            self.rms_norm_weights_distribution["input"]=hidden_states.cpu().float().flatten().numpy()
+            self.rms_norm_weights_distribution["output"]=self.weight * hidden_states.to(input_dtype).cpu().float().flatten().numpy()
 
         return self.weight * hidden_states.to(input_dtype)
 
@@ -213,15 +210,12 @@ class ChameleonMLP(nn.Module):
         if self.get_weights_distribution_flag:
             mlp_gate_weights_distribution = {}
             mlp_gate_weights_distribution["input"]=x.cpu().float().flatten().numpy()
-            mlp_gate_weights_distribution["weights"]=self.gate_proj.weight.cpu().float().flatten().numpy()
             mlp_gate_weights_distribution["output"]=self.gate_proj(x).cpu().float().flatten().numpy()
             mlp_up_weights_distribution = {}
             mlp_up_weights_distribution["input"]=x.cpu().float().flatten().numpy()
-            mlp_up_weights_distribution["weights"]=self.up_proj.weight.cpu().float().flatten().numpy()
             mlp_up_weights_distribution["output"]=self.up_proj(x).cpu().float().flatten().numpy()
             mlp_down_weights_distribution = {}
             mlp_down_weights_distribution["input"]=self.act_fn(self.act_fn(self.gate_proj(x)) * self.up_proj(x)).cpu().float().flatten().numpy()
-            mlp_down_weights_distribution["weights"]=self.down_proj.weight.cpu().float().flatten().numpy()
 
         down_proj = self.down_proj(self.act_fn(self.gate_proj(x)) * self.up_proj(x))
 
@@ -354,7 +348,6 @@ class ChameleonAttention(nn.Module):
         if self.get_weights_distribution_flag:
             self_attn_q_proj_distribution = {}
             self_attn_q_proj_distribution["input"]=hidden_states.cpu().float().flatten().numpy()
-            self_attn_q_proj_distribution["weights"]=self.q_proj.weight.cpu().float().flatten().numpy()
 
         query_states = self.q_proj(hidden_states)
 
@@ -365,7 +358,6 @@ class ChameleonAttention(nn.Module):
         if self.get_weights_distribution_flag:
             self_attn_k_proj_distribution = {}
             self_attn_k_proj_distribution["input"]=hidden_states.cpu().float().flatten().numpy()
-            self_attn_k_proj_distribution["weights"]=self.k_proj.weight.cpu().float().flatten().numpy()
 
         key_states = self.k_proj(hidden_states)
 
@@ -376,7 +368,6 @@ class ChameleonAttention(nn.Module):
         if self.get_weights_distribution_flag:
             self_attn_v_proj_distribution = {}
             self_attn_v_proj_distribution["input"]=hidden_states.cpu().float().flatten().numpy()
-            self_attn_v_proj_distribution["weights"]=self.v_proj.weight.cpu().float().flatten().numpy()
         
         value_states = self.v_proj(hidden_states)
 
@@ -389,8 +380,6 @@ class ChameleonAttention(nn.Module):
         if self.get_weights_distribution_flag:
             self_attn_q_norm_distribution = {}
             self_attn_q_norm_distribution["input"]=query_states.cpu().float().flatten().numpy()
-            self_attn_q_norm_distribution["weights"]=self.q_norm.weight.cpu().float().flatten().numpy()
-            self_attn_q_norm_distribution["bias"]=self.q_norm.bias.cpu().float().flatten().numpy()
 
         query_states = self.q_norm(query_states)
 
@@ -403,8 +392,6 @@ class ChameleonAttention(nn.Module):
         if self.get_weights_distribution_flag:
             self_attn_k_norm_distribution = {}
             self_attn_k_norm_distribution["input"]=key_states.cpu().float().flatten().numpy()
-            self_attn_k_norm_distribution["weights"]=self.k_norm.weight.cpu().float().flatten().numpy()
-            self_attn_k_norm_distribution["bias"]=self.k_norm.bias.cpu().float().flatten().numpy()
 
         key_states = self.k_norm(key_states)
 
@@ -450,7 +437,6 @@ class ChameleonAttention(nn.Module):
         if self.get_weights_distribution_flag:
             self_attn_o_proj_distribution = {}
             self_attn_o_proj_distribution["input"]=attn_output.cpu().float().flatten().numpy()
-            self_attn_o_proj_distribution["weights"]=self.o_proj.weight.cpu().float().flatten().numpy()
 
         attn_output = self.o_proj(attn_output)
 
@@ -1441,6 +1427,10 @@ class ChameleonModel(ChameleonPreTrainedModel):
         """
 
         if inputs_embeds is None:
+            if self.get_weights_distribution_flag:
+                embedding_weight_distributions = {}
+                embedding_weight_distributions["input"]=input_ids.cpu().float().flatten().numpy()
+
             inputs_embeds = self.embed_tokens(input_ids)
 
         # torch.jit.trace() doesn't support cache objects in the output
@@ -1476,7 +1466,8 @@ class ChameleonModel(ChameleonPreTrainedModel):
         next_decoder_cache = None
 
         if self.get_weights_distribution_flag:
-            self.layers_weights_distribution_map[self.embed_tokens]=self.flatten_input_activation(hidden_states)
+            embedding_weight_distributions["output"]=hidden_states.cpu().float().flatten().numpy()
+            self.layers_weights_distribution_map[self.embed_tokens]=embedding_weight_distributions
 
         for decoder_layer in self.layers:
             if output_hidden_states:
@@ -1569,6 +1560,50 @@ class ChameleonModel(ChameleonPreTrainedModel):
             layer_idx = layer_idx + 1
 
         print("All input activations saved to ", save_dir_path)
+
+    
+    def save_detailed_all_input_activations(self,save_dir_path):
+        import os
+        if not os.path.exists(save_dir_path):
+            os.makedirs(save_dir_path)
+        layer_idx=0
+        for layer in self.layers_weights_distribution_map:
+            if isinstance(layer, ChameleonDecoderLayer):
+
+                for block in layer.decoder_weights_distributions:
+                    if block == "self_attn":
+                        for attn_layer in layer.decoder_weights_distributions[block]:
+                            input=layer.decoder_weights_distributions[block][attn_layer]["input"]
+                            output=layer.decoder_weights_distributions[block][attn_layer]["output"]
+                            input.tofile(f"{save_dir_path}/layers.{layer_idx}.{attn_layer}.input.bin")
+                            output.tofile(f"{save_dir_path}/layers.{layer_idx}.{attn_layer}.output.bin")
+                    elif block == "mlp":
+                        for mlp_layer in layer.decoder_weights_distributions[block]:
+                            input=layer.decoder_weights_distributions[block][attn_layer]["input"]
+                            output=layer.decoder_weights_distributions[block][attn_layer]["output"]
+                            input.tofile(f"{save_dir_path}/layers.{layer_idx}.{attn_layer}.input.bin")
+                            output.tofile(f"{save_dir_path}/layers.{layer_idx}.{attn_layer}.output.bin")
+                    elif block == "input_layer_norm" or block == "post_attention_norm":
+                        input=layer.decoder_weights_distributions[block]["input"]
+                        output=layer.decoder_weights_distributions[block]["output"]
+                        input.tofile(f"{save_dir_path}/layers.{layer_idx}.{block}.input.bin")
+                        output.tofile(f"{save_dir_path}/layers.{layer_idx}.{block}.output.bin")
+
+            elif isinstance(layer, nn.Embedding):
+                input=self.layers_weights_distribution_map[layer]["input"]
+                output=self.layers_weights_distribution_map[layer]["output"]
+                input.tofile(f"{save_dir_path}/embed_tokens.input.bin")
+                output.tofile(f"{save_dir_path}/embed_tokens.output.bin")
+            elif isinstance(layer, ChameleonRMSNorm):
+                input=layer.rms_norm_weights_distribution["input"]
+                input=layer.rms_norm_weights_distribution["output"]
+                input.tofile(f"{save_dir_path}/norm.input.bin")
+                output.tofile(f"{save_dir_path}/norm.output.bin")
+            else:
+                layer_name = "unknown"
+
+        print(f"ALL detailed input activations saved to {save_dir_path}")
+
 
     # Copied from transformers.models.llama.modeling_llama.LlamaModel._update_causal_mask
     def _update_causal_mask(
