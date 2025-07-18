@@ -512,7 +512,7 @@ class _BaseAutoModelClass:
 
                     adapter_kwargs["_adapter_model_path"] = pretrained_model_name_or_path
                     pretrained_model_name_or_path = adapter_config["base_model_name_or_path"]
-
+        #print("Here 1")
         if not isinstance(config, PretrainedConfig):
             kwargs_orig = copy.deepcopy(kwargs)
             # ensure not to pollute the config object with torch_dtype="auto" - since it's
@@ -547,7 +547,7 @@ class _BaseAutoModelClass:
 
         # Set the adapter kwargs
         kwargs["adapter_kwargs"] = adapter_kwargs
-
+        #print("Here2")
         if has_remote_code and trust_remote_code:
             class_ref = config.auto_map[cls.__name__]
             model_class = get_class_from_dynamic_module(
@@ -560,7 +560,9 @@ class _BaseAutoModelClass:
                 pretrained_model_name_or_path, *model_args, config=config, **hub_kwargs, **kwargs
             )
         elif type(config) in cls._model_mapping.keys():
+            #print("Here 3")
             model_class = _get_model_class(config, cls._model_mapping)
+            #print(model_class)
             return model_class.from_pretrained(
                 pretrained_model_name_or_path, *model_args, config=config, **hub_kwargs, **kwargs
             )
