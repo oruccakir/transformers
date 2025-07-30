@@ -4320,6 +4320,8 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
                 "One or more modules is configured to be mapped to disk. Disk offload is not supported for models "
                 "loaded from GGUF files."
             )
+        
+        #print("HERE")
 
         if from_tf:
             if resolved_archive_file.endswith(".index"):
@@ -4353,6 +4355,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
                 )
                 raise
         elif from_pt:
+            #print(cls)
             # restore default dtype
             if dtype_orig is not None:
                 torch.set_default_dtype(dtype_orig)
@@ -4384,6 +4387,8 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
                 weights_only=weights_only,
                 device_mesh=device_mesh,
             )
+
+        print("HERE2")
 
         # make sure token embedding weights are still tied if needed
         model.tie_weights()
@@ -4642,7 +4647,6 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
         has_inv_freq_buffers = any(buffer.endswith("rotary_emb.inv_freq") for buffer in model_buffers)
         if has_inv_freq_buffers:
             unexpected_keys = {k for k in unexpected_keys if "rotary_emb.inv_freq" not in k}
-
         model.tie_weights()
         if device_map is None and not is_fsdp_enabled() and not is_deepspeed_zero3_enabled():
             ptrs = collections.defaultdict(list)
@@ -4907,6 +4911,7 @@ class PreTrainedModel(nn.Module, ModuleUtilsMixin, GenerationMixin, PushToHubMix
             if len(resolved_archive_file) > 1:
                 resolved_archive_file = logging.tqdm(resolved_archive_file, desc="Loading checkpoint shards")
             assign_to_params_buffers = None
+            print("Still alive")
             for shard_file in resolved_archive_file:
                 # Skip the load for shards that only contain disk-offloaded weights when using safetensors for the offload.
                 if shard_file in disk_only_shard_files:

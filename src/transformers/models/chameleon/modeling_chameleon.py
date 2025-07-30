@@ -1317,9 +1317,11 @@ class ChameleonModel(ChameleonPreTrainedModel):
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
         self.vocabulary_mapping = ChameleonImageVocabularyMapping(config.vocabulary_map)
         decoder_layer = ChameleonDecoderLayer if not self.config.swin_norm else ChameleonSwinDecoderLayer
-        self.layers = nn.ModuleList(
-            [decoder_layer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
-        )
+        import os
+        if "NOT_LOAD_MODEL" not in os.environ or os.environ["NOT_LOAD_MODEL"] != "YES": 
+            self.layers = nn.ModuleList(
+                [decoder_layer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
+            )
         self.norm = ChameleonRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.vqmodel = ChameleonVQVAE._from_config(config.vq_config)
         self.gradient_checkpointing = False
@@ -1452,6 +1454,7 @@ class ChameleonModel(ChameleonPreTrainedModel):
 
         # embed positions
         hidden_states = inputs_embeds
+        print("Save_embeddings?", self.save_embedding_flag)
         if self.save_embedding_flag:
             if self.embedding_file_path is not None:
                 flattened_embeddings = inputs_embeds.cpu().float().flatten().numpy()

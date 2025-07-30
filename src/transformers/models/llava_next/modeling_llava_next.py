@@ -367,6 +367,7 @@ class LlavaNextForConditionalGeneration(LlavaNextPreTrainedModel, GenerationMixi
 
         self.vocab_size = config.text_config.vocab_size
         self.language_model = AutoModelForCausalLM.from_config(config.text_config)
+        print(self.language_model)
         if self.language_model._tied_weights_keys is not None:
             self._tied_weights_keys = [f"language_model.{k}" for k in self.language_model._tied_weights_keys]
 
@@ -378,6 +379,8 @@ class LlavaNextForConditionalGeneration(LlavaNextPreTrainedModel, GenerationMixi
         self.embedded_token_length = 0
         self.get_weights_distribution_flag = False
         self.layers_weights_distribution_map = {}
+
+        self.idx = 0
 
         self.post_init()
 
@@ -659,6 +662,10 @@ class LlavaNextForConditionalGeneration(LlavaNextPreTrainedModel, GenerationMixi
 
         hidden_states = inputs_embeds
         if self.save_embedding_flag:
+            import os
+            if "EMBEDDING_DIR_PATH" in os.environ and "DATASET_NAME" in os.environ:
+                self.embedding_file_path = os.environ["EMBEDDING_DIR_PATH"]+"/"+os.environ["DATASET_NAME"]+"/embedding_"+str(self.idx)+".bin"
+                self.idx += 1
             if self.embedding_file_path is not None:
                 inputs_embeds.cpu().flatten().float().detach().numpy().tofile(self.embedding_file_path)
                 self.embedded_token_length = hidden_states.shape[1]
