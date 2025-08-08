@@ -1835,6 +1835,8 @@ class ChameleonForConditionalGeneration(ChameleonPreTrainedModel, GenerationMixi
             cache_position=cache_position,
         )
 
+        if outputs is None:
+            return
         hidden_states = outputs[0]
         logits = self.lm_head(hidden_states)
         # Disallow image tokens which does not include special begin-image and end-image tokens
