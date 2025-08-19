@@ -1454,14 +1454,13 @@ class ChameleonModel(ChameleonPreTrainedModel):
 
         # embed positions
         hidden_states = inputs_embeds
-        print("Save_embeddings?", self.save_embedding_flag)
-        if self.save_embedding_flag:
-            if self.embedding_file_path is not None:
-                flattened_embeddings = inputs_embeds.cpu().float().flatten().numpy()
-                flattened_embeddings.tofile(self.embedding_file_path)
-                self.embedded_token_length = hidden_states.shape[1]
-                print(f"Embeddings saved to {self.embedding_file_path} with {self.embedded_token_length} tokens")
-                return 
+        import os
+        if os.environ["SAVE_EMBEDDINGS"] == "YES":
+            embedding_file_path = f"{os.environ["EMBEDDING_DIR_PATH"]}/embedding_{os.environ["CURRENT_DATASET_INDEX"]}.bin"
+            flattened_embeddings = inputs_embeds.cpu().float().flatten().numpy()
+            flattened_embeddings.tofile(embedding_file_path)
+            print(f"Embeddings saved to {embedding_file_path} with shape {inputs_embeds.shape}")
+            return # This return is optional, it will prevent the model from evaluating.            
 
         # decoder layers
         all_hidden_states = () if output_hidden_states else None
