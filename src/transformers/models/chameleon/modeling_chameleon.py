@@ -1456,9 +1456,10 @@ class ChameleonModel(ChameleonPreTrainedModel):
         hidden_states = inputs_embeds
         import os
         if os.environ["SAVE_EMBEDDINGS"] == "YES":
-            embedding_file_path = f"{os.environ["EMBEDDING_DIR_PATH"]}/embedding_{os.environ["CURRENT_DATASET_INDEX"]}.bin"
-            flattened_embeddings = inputs_embeds.cpu().float().flatten().numpy()
-            flattened_embeddings.tofile(embedding_file_path)
+            embedding_file_path = f"{os.environ['EMBEDDING_DIR_PATH']}/{os.environ['DATASET_NAME']}/"
+            if not os.path.isdir(embedding_file_path): os.makedirs(embedding_file_path)
+            embedding_file_path = embedding_file_path+f"embedding_{os.environ['CURRENT_DATASET_INDEX']}.bin"
+            inputs_embeds.cpu().float().flatten().numpy().tofile(embedding_file_path)
             print(f"Embeddings saved to {embedding_file_path} with shape {inputs_embeds.shape}")
             return # This return is optional, it will prevent the model from evaluating.            
 
